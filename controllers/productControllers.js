@@ -40,7 +40,7 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-// Add a product
+// Add a new product
 const addProduct = async (req, res) => {
   const {
     name,
@@ -65,14 +65,30 @@ const addProduct = async (req, res) => {
   } = req.body;
 
   // Check for required fields
-  if (!name || !brand || !price || !description || !sku || !category || !subCategory || !sizeOptions || isReturnable === undefined || !bashProductUUID || !productCode) {
-    return res.status(400).json({ message: "All required fields must be provided." });
+  if (
+    !name ||
+    !brand ||
+    !price ||
+    !description ||
+    !sku ||
+    !category ||
+    !subCategory ||
+    !sizeOptions ||
+    isReturnable === undefined ||
+    !bashProductUUID ||
+    !productCode
+  ) {
+    return res.status(400).json({
+      message: "All required fields must be provided.",
+    });
   }
 
   // Access the uploaded files (assuming multiple images)
-  const imageFiles = req.files; // Adjust according to your middleware setup for multiple files
+  const imageFiles = req.files;
   if (!imageFiles || imageFiles.length === 0) {
-    return res.status(400).json({ message: "At least one image file is required." });
+    return res.status(400).json({
+      message: "At least one image file is required.",
+    });
   }
 
   try {
@@ -175,8 +191,22 @@ const updateProduct = async (req, res) => {
   } = req.body;
 
   // Check for required fields
-  if (!name || !brand || !price || !description || !sku || !category || !subCategory || !sizeOptions || isReturnable === undefined || !bashProductUUID || !productCode) {
-    return res.status(400).json({ message: "All required fields must be provided." });
+  if (
+    !name ||
+    !brand ||
+    !price ||
+    !description ||
+    !sku ||
+    !category ||
+    !subCategory ||
+    !sizeOptions ||
+    isReturnable === undefined ||
+    !bashProductUUID ||
+    !productCode
+  ) {
+    return res.status(400).json({
+      message: "All required fields must be provided.",
+    });
   }
 
   try {
@@ -217,7 +247,7 @@ const updateProduct = async (req, res) => {
 
         // Wait for all new images to be uploaded
         const newImageUrls = await Promise.all(imagePromises);
-        updates.images = [...(docSnap.data().images || []), ...newImageUrls]; 
+        updates.images = [...(docSnap.data().images || []), ...newImageUrls];
       }
 
       await updateDoc(docRef, updates);

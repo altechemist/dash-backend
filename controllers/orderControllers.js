@@ -7,21 +7,21 @@ const {
   updateDoc,
 } = require("firebase/firestore");
 const { db } = require("../config/firebase");
-const { Request, Response } = require("express");
 
 // Create a new order
 const createOrder = async (req, res) => {
-  const { userId, items } = req.body;
+  const { userId, items, billingInfo } = req.body;
 
   // Check for required fields
-  if (!userId || !items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ message: "User ID and items are required." });
+  if (!userId || !items || !Array.isArray(items) || items.length === 0 || !billingInfo) {
+    return res.status(400).json({ message: "User ID, items, and billing information are required." });
   }
 
   try {
     const newOrder = {
       userId,
       items,
+      billingInfo,
       status: "Pending",
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -31,7 +31,7 @@ const createOrder = async (req, res) => {
     res.status(201).json({
       message: "Order created successfully",
       orderId: docRef.id,
-      order: newOrder,
+      order: { id: docRef.id, ...newOrder },
     });
   } catch (error) {
     console.error("Error creating order:", error);
