@@ -1,17 +1,17 @@
-const {
-  collection,
-  addDoc,
-  getDoc,
-  getDocs,
-  doc,
-  deleteDoc,
-  updateDoc,
+const { 
+  collection, 
+  addDoc, 
+  getDoc, 
+  getDocs, 
+  doc, 
+  deleteDoc, 
+  updateDoc 
 } = require("firebase/firestore");
-const {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL,
+const { 
+  getStorage, 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
 } = require("firebase/storage");
 const { db } = require("../config/firebase");
 
@@ -42,29 +42,23 @@ const getAllProducts = async (req, res) => {
 
 // Add a new product
 const addProduct = async (req, res) => {
-  const {
-    name,
-    brand,
-    price,
-    description,
-    sku,
-    category,
-    subCategory,
-    sizeOptions,
-    isReturnable,
-    bashProductUUID,
-    productCode,
-    soldBy,
-    neckline,
-    fit,
-    sleeveLength,
-    styleDetails,
-    fabric,
-    modelSize,
-    modelMeasurements,
+  const { 
+    name, 
+    brand, 
+    price, 
+    description, 
+    sku, 
+    category, 
+    subCategory, 
+    sizeOptions, 
+    isReturnable, 
+    bashProductUUID, 
+    productCode, 
+    soldBy, 
+    images 
   } = req.body;
 
-  // Check for required fields
+  // Check for required fields (images are optional now)
   if (
     !name ||
     !brand ||
@@ -83,23 +77,28 @@ const addProduct = async (req, res) => {
     });
   }
 
-  // Access the uploaded files (assuming multiple images)
-  const imageFiles = req.files;
-  if (!imageFiles || imageFiles.length === 0) {
-    return res.status(400).json({
-      message: "At least one image file is required.",
-    });
-  }
-
   try {
-    const imagePromises = imageFiles.map(async (imageFile) => {
-      const imageRef = ref(storage, `images/${Date.now()}-${imageFile.originalname}`);
-      const snapshot = await uploadBytes(imageRef, imageFile.buffer);
-      return getDownloadURL(snapshot.ref);
-    });
+    let imageUrls = images || [];  // Use image URLs from the request body, if provided
 
-    // Wait for all images to be uploaded
-    const imageUrls = await Promise.all(imagePromises);
+    // If image files are provided, upload them
+    if (req.files && req.files.length > 0) {
+      const imageFiles = req.files;
+      const imagePromises = imageFiles.map(async (imageFile) => {
+        const imageRef = ref(storage, `images/${Date.now()}-${imageFile.originalname}`);
+        const snapshot = await uploadBytes(imageRef, imageFile.buffer);
+        return getDownloadURL(snapshot.ref);
+      });
+
+      // Wait for all images to be uploaded
+      imageUrls = [...imageUrls, ...await Promise.all(imagePromises)];
+    }
+
+    // If no images are provided, return an error
+    if (imageUrls.length === 0) {
+      return res.status(400).json({
+        message: "At least one image file or image URL is required.",
+      });
+    }
 
     // Add the product to Firestore
     const docRef = await addDoc(collection(db, "products"), {
@@ -115,14 +114,7 @@ const addProduct = async (req, res) => {
       bashProductUUID,
       productCode,
       soldBy,
-      neckline,
-      fit,
-      sleeveLength,
-      styleDetails,
-      fabric,
-      modelSize,
-      modelMeasurements,
-      images: imageUrls, // Save array of image URLs
+      images: imageUrls, // Save array of image URLs (empty if no images)
     });
 
     res.status(201).json({
@@ -168,29 +160,23 @@ const getProductById = async (req, res) => {
 // Update a product by its id
 const updateProduct = async (req, res) => {
   const id = req.params.id;
-  const {
-    name,
-    brand,
-    price,
-    description,
-    sku,
-    category,
-    subCategory,
-    sizeOptions,
-    isReturnable,
-    bashProductUUID,
-    productCode,
-    soldBy,
-    neckline,
-    fit,
-    sleeveLength,
-    styleDetails,
-    fabric,
-    modelSize,
-    modelMeasurements,
+  const { 
+    name, 
+    brand, 
+    price, 
+    description, 
+    sku, 
+    category, 
+    subCategory, 
+    sizeOptions, 
+    isReturnable, 
+    bashProductUUID, 
+    productCode, 
+    soldBy,  
+    images 
   } = req.body;
 
-  // Check for required fields
+  // Check for required fields (images are optional now)
   if (
     !name ||
     !brand ||
@@ -226,18 +212,13 @@ const updateProduct = async (req, res) => {
         isReturnable,
         bashProductUUID,
         productCode,
-        soldBy,
-        neckline,
-        fit,
-        sleeveLength,
-        styleDetails,
-        fabric,
-        modelSize,
-        modelMeasurements,
+        soldBy
       };
 
+      let updatedImageUrls = images || docSnap.data().images || [];  // Use provided images or existing ones
+
       // If new images are uploaded
-      if (req.files) {
+      if (req.files && req.files.length > 0) {
         const imageFiles = req.files;
         const imagePromises = imageFiles.map(async (imageFile) => {
           const imageRef = ref(storage, `images/${Date.now()}-${imageFile.originalname}`);
@@ -247,8 +228,17 @@ const updateProduct = async (req, res) => {
 
         // Wait for all new images to be uploaded
         const newImageUrls = await Promise.all(imagePromises);
-        updates.images = [...(docSnap.data().images || []), ...newImageUrls];
+        updatedImageUrls = [...updatedImageUrls, ...newImageUrls]; // Append new images to existing ones
       }
+
+      // If no images are provided, return an error
+      if (updatedImageUrls.length === 0) {
+        return res.status(400).json({
+          message: "At least one image file or image URL is required.",
+        });
+      }
+
+      updates.images = updatedImageUrls;  // Assign the updated image list
 
       await updateDoc(docRef, updates);
 

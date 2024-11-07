@@ -3,7 +3,13 @@ const multer = require("multer");
 const {
   loginUser,
   registerUser,
+  logoutUser,
   resetEmail,
+  getUserProfile,
+  updateUserProfile,
+  changePassword,
+  addToWishlist,
+  removeFromWishlist,
 } = require("../controllers/userControllers");
 const {
   getAllProducts,
@@ -33,9 +39,15 @@ const upload = multer({ storage });
 const router = express.Router();
 
 // User routes
-router.post("/login", loginUser);
-router.post("/register", registerUser);
-router.post("/resetPassword", resetEmail);
+router.post("/users/login", loginUser);
+router.post("/users/register", registerUser);
+router.post("/users/logout", logoutUser)
+router.post("users/reset-password", resetEmail);
+router.get("/users/:id", getUserProfile);
+router.put("/users/:id", updateUserProfile);
+router.put("/users/:id/wishlist/add", addToWishlist);
+router.put("/users/:id/wishlist/remove")
+
 
 // Product routes
 router.get("/products", getAllProducts);
@@ -52,10 +64,10 @@ router.put("/orders/:id/status", updateOrderStatus);
 router.delete("/orders/:id", cancelOrder);
 
 // Cart routes
-router.get("/cart", getCart);
-router.post("/cart", addToCart);
-router.delete("/cart/:itemId", removeFromCart);
-router.put("/cart/:itemId/quantity", updateCartItemQuantity);
+router.get("/carts/:userId", getCart);
+router.post("/carts/:userId/add", addToCart);
+router.delete("/carts/:userId/remove", removeFromCart);
+router.put("/cart/:userId/quantity", updateCartItemQuantity);
 
 // Export the router
 module.exports = router;

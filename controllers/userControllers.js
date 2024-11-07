@@ -1,9 +1,7 @@
 const {
-  collection,
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   doc,
 } = require("firebase/firestore");
 const {
@@ -19,26 +17,34 @@ const { db, auth } = require("../config/firebase");
 const registerUser = async (req, res) => {
   const { email, password } = req.body;
 
-  // Validate the email
+  // Validate the email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return res.status(400).json({ message: "Invalid email format." });
+    return res.status(400).json({
+      message: "Invalid email format. Please enter a valid email address.",
+      field: "email",
+    });
   }
 
-  // Validate the password (at least 8 chars, 1 digit, 1 uppercase, 1 special char)
+  // Validate the password format (at least 8 chars, 1 digit, 1 uppercase, 1 special char)
   const passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*]).{8,}$/;
   if (!passwordRegex.test(password)) {
-    return res.status(400).json({ message: "Invalid password format." });
+    return res.status(400).json({
+      message: "Password must be at least 8 characters long, include one digit, one uppercase letter, and one special character.",
+      field: "password",
+    });
   }
 
   try {
+    // Try to create a user with Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
+    // Prepare user data for Firestore
     const userData = {
       uid: user.uid,
       role: "client",
-      username: email.split('@')[0], // Assuming username as email prefix
+      username: email.split('@')[0], // Assuming username as the email prefix
       email: user.email,
       addresses: [],
       wishlist: [],
@@ -49,23 +55,26 @@ const registerUser = async (req, res) => {
     // Save user data in Firestore
     await setDoc(doc(db, "users", user.uid), userData);
 
+    // Respond with success
     res.status(201).json({
       message: "User registered successfully",
       user: {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName,
+        displayName: user.displayName || email.split('@')[0],
       },
     });
   } catch (error) {
+    // Log and return detailed error
     console.error("Error registering user:", error.message);
     res.status(400).json({
-      message: "Error registering user",
+      message: "Error registering user. Please try again.",
       error: error.message,
       code: error.code,
     });
   }
 };
+
 
 // Login a user
 const loginUser = async (req, res) => {
@@ -97,6 +106,8 @@ const loginUser = async (req, res) => {
 const logoutUser = async (req, res) => {
   try {
     await signOut(auth);
+
+    // Clear storage
     res.json({ message: "User logged out successfully" });
   } catch (error) {
     console.error("Error logging out user:", error.message);
@@ -174,6 +185,74 @@ const changePassword = async (req, res) => {
   }
 };
 
+// Add item to wishlist
+const addToWishlist = async (req, res) => {
+  const { userId, itemId } = req.body;
+
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Add the item to the wishlist array
+    await updateDoc(userRef, {
+      wishlist: arrayUnion(itemId)
+    });
+
+    // Get updated user data
+    const updatedUserSnap = await getDoc(userRef);
+    const updatedUserData = updatedUserSnap.data();
+
+    res.status(200).json({
+      message: "Item added to wishlist",
+      wishlist: updatedUserData.wishlist,
+    });
+  } catch (error) {
+    console.error("Error adding to wishlist:", error.message);
+    res.status(500).json({
+      message: "Failed to add to wishlist",
+      error: error.message,
+    });
+  }
+};
+
+// Remove item from wishlist
+const removeFromWishlist = async (req, res) => {
+  const { userId, itemId } = req.body;
+
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Remove the item from the wishlist array
+    await updateDoc(userRef, {
+      wishlist: arrayRemove(itemId) 
+    });
+
+    // Get updated user data
+    const updatedUserSnap = await getDoc(userRef);
+    const updatedUserData = updatedUserSnap.data();
+
+    res.status(200).json({
+      message: "Item removed from wishlist",
+      wishlist: updatedUserData.wishlist,
+    });
+  } catch (error) {
+    console.error("Error removing from wishlist:", error.message);
+    res.status(500).json({
+      message: "Failed to remove from wishlist",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -182,4 +261,6 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   changePassword,
+  addToWishlist,
+  removeFromWishlist,
 };

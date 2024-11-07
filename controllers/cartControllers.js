@@ -1,23 +1,28 @@
 const { doc, getDoc, setDoc } = require("firebase/firestore");
 const { db } = require("../config/firebase");
 
-// Get cart for a user
+// Get cart for a user (initialize empty cart if it doesn't exist)
 const getCart = async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed as a URL parameter
+  const { userId } = req.params;
 
   try {
     const docRef = doc(db, "carts", userId);
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
+      // Cart exists
       res.json({
         message: "Cart retrieved successfully",
         cart: docSnap.data(),
       });
     } else {
-      res.status(404).json({
-        message: "Cart not found",
-        cart: { userId, items: [] }, // Return an empty cart if not found
+      // Cart doesn't exist, create and return empty cart
+      const newCart = { userId, items: [] };
+      await setDoc(docRef, newCart);
+
+      res.status(201).json({
+        message: "Cart created and empty",
+        cart: newCart,
       });
     }
   } catch (error) {
@@ -29,9 +34,9 @@ const getCart = async (req, res) => {
   }
 };
 
-// Add a product to the cart
+// Add a product to the cart (create cart if it doesn't exist)
 const addToCart = async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed as a URL parameter
+  const { userId } = req.params;
   const { productId, productName, productPrice, productImage, quantity } = req.body;
 
   // Check for required fields
@@ -39,42 +44,58 @@ const addToCart = async (req, res) => {
     return res.status(400).json({ message: "Product ID, quantity, name, price, and image are required." });
   }
 
+  // Ensure userId is provided and is valid
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required." });
+  }
+
   try {
+    // Log userId and document reference for debugging
+    console.log("UserID:", userId);
+    
     const docRef = doc(db, "carts", userId);
+    
+    // Log the docRef path
+    console.log("Firestore Doc Ref:", docRef.path);
+    
     const docSnap = await getDoc(docRef);
 
+    let cart;
+
     if (docSnap.exists()) {
-      const cart = docSnap.data();
+      // Cart exists, retrieve it
+      cart = docSnap.data();
+
+      // Ensure the 'items' array exists (initialize if missing)
+      if (!cart.items) {
+        cart.items = [];
+      }
+
+      // Log the items array to check for undefined or incorrect structure
+      console.log("Cart items: ", cart.items);
+
       const existingItemIndex = cart.items.findIndex(item => item.productId === productId);
 
       if (existingItemIndex > -1) {
-        // If the item already exists in the cart, update the quantity
+        // Update quantity if product already exists
         cart.items[existingItemIndex].quantity += quantity;
       } else {
-        // Otherwise, add a new item with product details
-        cart.items.push({
-          productId,
-          productName,
-          productPrice,
-          productImage,
-          quantity,
-        });
+        // Add new product to the cart
+        cart.items.push({ productId, productName, productPrice, productImage, quantity });
       }
 
-      await setDoc(docRef, cart); // Save the updated cart in Firestore
-      res.json({
-        message: "Product added to cart successfully",
-        cart,
-      });
+      // Save the updated cart
+      await setDoc(docRef, cart);
     } else {
-      // Create a new cart if it doesn't exist
-      const newCart = { userId, items: [{ productId, productName, productPrice, productImage, quantity }] };
-      await setDoc(docRef, newCart);
-      res.status(201).json({
-        message: "Cart created and product added successfully",
-        cart: newCart,
-      });
+      // Cart doesn't exist, create a new one
+      cart = { userId, items: [{ productId, productName, productPrice, productImage, quantity }] };
+      await setDoc(docRef, cart);
     }
+
+    res.json({
+      message: "Product added to cart successfully",
+      cart,
+    });
   } catch (error) {
     console.error("Error adding to cart:", error);
     res.status(500).json({
@@ -84,9 +105,11 @@ const addToCart = async (req, res) => {
   }
 };
 
+
+
 // Remove a product from the cart
 const removeFromCart = async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed as a URL parameter
+  const { userId } = req.params;
   const { productId } = req.body;
 
   if (!productId) {
@@ -99,7 +122,7 @@ const removeFromCart = async (req, res) => {
 
     if (docSnap.exists()) {
       const cart = docSnap.data();
-      cart.items = cart.items.filter(item => item.productId !== productId);
+      cart.items = cart.items.filter((item) => item.productId !== productId);
 
       await setDoc(docRef, cart);
       res.json({
@@ -120,12 +143,13 @@ const removeFromCart = async (req, res) => {
 
 // Update the quantity of a cart item
 const updateCartItemQuantity = async (req, res) => {
-  const { userId } = req.params; // Assuming userId is passed as a URL parameter
+  const { userId } = req.params;
   const { productId, quantity } = req.body;
 
-  // Check for required fields
   if (!productId || quantity === undefined) {
-    return res.status(400).json({ message: "Product ID and quantity are required." });
+    return res
+      .status(400)
+      .json({ message: "Product ID and quantity are required." });
   }
 
   try {
@@ -134,7 +158,9 @@ const updateCartItemQuantity = async (req, res) => {
 
     if (docSnap.exists()) {
       const cart = docSnap.data();
-      const existingItemIndex = cart.items.findIndex(item => item.productId === productId);
+      const existingItemIndex = cart.items.findIndex(
+        (item) => item.productId === productId
+      );
 
       if (existingItemIndex > -1) {
         cart.items[existingItemIndex].quantity = quantity; // Update quantity
